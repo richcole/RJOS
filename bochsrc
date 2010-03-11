@@ -4,5 +4,5 @@ floppya: 1_44=build/floppy.img, status=inserted
 boot: floppy
 config_interface: wx
 display_library: wx, options="gui_debug"
-
+# magic_break: enabled=1
 

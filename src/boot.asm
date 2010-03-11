@@ -1,6 +1,8 @@
 [ORG 0x00007C00]
 [BITS 16]
 
+bootloader:	
+	
 cli 				; turn interupts off
 xor bx,bx			; zero the general purpose registers
 mov es,bx
@@ -44,39 +46,41 @@ out 92h,al			; write the result to the port
 ;;; ----
 ;;; CR3 (PML4): 0x0000a000				
 
-				; The page tables will look like this:
-; PML4:
-; dq 0x000000000000b00f =
-;	00000000 00000000 00000000 00000000 00000000 00000000 10010000 00001111
-;       times 511 dq 0x0000000000000000
-; PDP:
-; dq 0x000000000000c00f =
-;       00000000 00000000 00000000 00000000 00000000 00000000 10100000 00001111
-;       times 511 dq 0x0000000000000000
-; PD:
-; dq 0x000000000000018f =
-;       00000000 00000000 00000000 00000000 00000000 00000000 00000001 10001111
-;       times 511 dq 0x0000000000000000
-; This defines one 2MB page at the start of memory, so we can access
-; the first 2MBs as if paging was disabled 
 xor bx,bx			; zero bx
 mov es,bx			; zero es
-cld				; clean the address flag
-mov di,0xa000			; set address to write to 0xa000
+cld				; clear the address flag
+
+;;; PML4 addr 0xa000, value 0xb00f
+;;; - flags: MBZ=0, IGN=0, A=0, PCD=0, PWT=1, U/S=1, R/W=1, P=1
+;;; - note that the bottom 12 bits must be zero for a base table address
+;;;   the address is then orded with the flags which works because
+;;;   the bottom 12 bits of the address are zero leaving room for flags
+mov di,0xa000			; set address to write to 0xa000 - 40960
 mov ax,0xb00f			; set value to write to 0xb00f
 stosw				; store value in ax at index di
 
+;;; Fill rest of PML4 with zeros, 4k-2 bytes
+;;; - flags: MBZ=0, IGN=0, A=0, PCD=0, PWT=0, U/S=0, R/W=0, P=0
+;;; - flags: AVL=0
+;;; - since P=0, any reference here will cause a page fault
 xor ax,ax			; zero ax
-mov cx,0x07ff			; number of values to write
+mov cx,0x07ff			; number of words to write = 2047
 rep stosw			; store values cx times
 
+;;; PDPE addr 0xb000, value 0xc00f
+;;; - flags: MBZ=0, IGN=0, A=0, PCD=0, PWT=1, U/S=1, R/W=1, P=1
+;;; - flags: AVL=0
 mov ax,0xc00f                   ; change value to write to 0xc00f
 stosw                           ; store value
 
+;;; fill the rest with zeros, since P=0, reference will cause fault
 xor ax,ax                       ; set value to store to zero
 mov cx,0x07ff                   ; number of entries to write
 rep stosw			; store values cx times
 
+;;; PDE addr 0xc000, value of 0x18f
+;;; - flags: AVL=0, PAT=0, G=1,
+;;; - flags: MBZ=1, IGN=0, A=0, PCD=0, PWT=1, U/S=1, R/W=1, P=1
 mov ax,0x018f			; set value to write to 0x018f
 stosw				; store values
 
@@ -84,62 +88,61 @@ xor ax,ax			; set value to write to zero
 mov cx,0x07ff			; number of entries to write
 rep stosw			; store values
 
-
 ;;; Enter long mode
+;;; - flags: DE=0, TSD=0, PVI=0, VME=0
+;;; - flags: PSE=0, PAE=1, MCE=0, PGE=1,
+;;; - flags: PCE=0, OSF=0, OSX=0
 mov eax,10100000b		; set PAE and PGE
 mov cr4,eax			 
 
-mov edx, 0x0000a000		; set cr3 to point to PML4
+;;; load the PML4 address 0xa000 into the cr3 reg
+;;; - note that the bottom 12 bits are zero leaving room for flags
+;;; - PWT (bit 3) (page level writethrough)  set to 0
+;;; - PCD (bit 4) (page level cache disable) set to 0
+mov edx,0x0000a000		; set cr3 to point tob PML4
 mov cr3,edx
 
-;;; UP TO HERE
-mov ecx,0xC0000080		; Specify EFER MSR
 
+;;; Enable Long Mode
+mov ecx,0xC0000080		; specify EFER as the MSR to be read
+rdmsr				; read model specific register
+or eax,0x00000100		; set EFER.LME=1
+wrmsr				; write model specific registers
 
-; Enable Long Mode
-rdmsr						
-or eax,0x00000100
-wrmsr
+mov ebx,cr0			; read CR0
+or ebx,0x80000001		; set PE=1, PG=1
+mov cr0,ebx			; write CR0
 
-mov ebx,cr0					; Activate long mode
-or ebx,0x80000001				; by enabling paging and protection simultaneously
-mov cr0,ebx					; skipping protected mode entirely
+;;; setup the global descriptor table
+lgdt [gdt.pointer]		; load 80-bit gdt.pointer below
+jmp gdt.code:startLongMode	; load cs with 64 bit segment and flush the instruction cache
 
-lgdt [gdt.pointer]				; load 80-bit gdt.pointer below
-
-jmp gdt.code:startLongMode			; Load CS with 64 bit segment and flush the instruction cache
-
-
-
-; Global Descriptor Table
+;;; beginning of the global descriptor table
 gdt:
-dq 0x0000000000000000				;Null Descriptor
+dq 0x0000000000000000		; 64 bit null descriptor
 
-.code equ $ - gdt
-dq 0x0020980000000000                   
+.code equ $ - gdt		; define code to be $ - gdt
+dq 0x0020980000000000           ; what is this word?
 
-.data equ $ - gdt
-dq 0x0000900000000000                   
+.data equ $ - gdt               ; define data to be $ - gdt
+dq 0x0000900000000000           ; what is this word?
 
-.pointer:
-dw $-gdt-1					;16-bit Size (Limit)
-dq gdt						;64-bit Base Address
-						;Changed from "dd gdt"
-						;Ref: Intel System Programming Manual V1 - 2.1.1.1
+.pointer:		      
+dw $-gdt-1			; size of the global descriptor table
+dq gdt				; address of the global descriptor table
 
-
-times 510-($-$$) db 0				;Fill boot sector
-dw 0xAA55					;Boot loader signature
+times 510-($-$$) db 0		; fill remainder of sector with zeros
+dw 0xaa55			; boot sector signature
 
 
 [BITS 64]
 
 startLongMode:
 
-; Interupts are disabled because no IDT has been set up
+;;; disable interupts
 cli						
 
-; Display:Put long mode kernel here.
+;;; long mode kernel 
 mov edi,0x00b8000				
 mov rax,0x0720077407750750
 mov [edi],rax
@@ -156,6 +159,22 @@ mov [edi+40],rax
 mov rax,0x07200720072e0765
 mov [edi+48],rax
 
+;;; print some characters to the screen
+
+xor eax,eax
+mov bh,0x0f
+start:	
+mov edi,0xb8000
+mov bl,[hello_string+eax]
+mov [edi+(eax*2)],bx
+add ax,1
+cmp ax,hello_string_len
+jne start
+
 ; Hang the system
 jmp $						
+
+hello_string db 'Hello World', 0
+hello_string_len equ $-hello_string
+
 

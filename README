@@ -1,0 +1,33 @@
+* Introduction
+
+  RJOS is my attempt to learn a little bit more about my AMD64 dual
+  processor. So far the project contains not much more than a simple
+  boot loader copied from osdev.org, an excellent resources for people
+  who want to learn about operating systems.
+
+* Compilation and Running Using Nasm and Bochs
+
+** Install Dependencies 
+
+First install bochs and nasm and rake
+
+  $ apt-get install bochs bochs-wm nasm rake
+
+** Build
+
+  $ rake
+
+** Run bochs
+
+  $ bochs
+
+* Next Steps
+
+** Find out how to include some C code
+** Find out how to use a device, e.g. the floppy drive, directly
+** Find out about kernel mode vs user mode and how to swap between the
+   two
+
+
+
+
