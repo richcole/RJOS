@@ -1,6 +1,7 @@
 [ORG 0x00007C00]
 [BITS 16]
 
+	
 bootloader:	
 	
 cli 				; turn interupts off
@@ -18,7 +19,7 @@ jmp 0:.clear_cs			; zero the code segment register
 
 				; Load kernel from floppy disk
 mov ax,0x020D			; - function 0x2, 0xd sectors
-mov bx,startLongMode		; - location to load to
+mov bx,start			; - location to load to
 mov cx,0x0002			; - cylinder 0x0, sector 0x2
 mov dx,0x0000  			; - driver number
 int 0x13		        ; - software interupt - load sectors
@@ -115,7 +116,8 @@ mov cr0,ebx			; write CR0
 
 ;;; setup the global descriptor table
 lgdt [gdt.pointer]		; load 80-bit gdt.pointer below
-jmp gdt.code:startLongMode	; load cs with 64 bit segment and flush the instruction cache
+jmp gdt.code:start		; load cs with 64 bit segment and flush
+				; the instruction cache	
 
 ;;; beginning of the global descriptor table
 gdt:
@@ -134,47 +136,7 @@ dq gdt				; address of the global descriptor table
 times 510-($-$$) db 0		; fill remainder of sector with zeros
 dw 0xaa55			; boot sector signature
 
-
 [BITS 64]
-
-startLongMode:
-
-;;; disable interupts
-cli						
-
-;;; long mode kernel 
-mov edi,0x00b8000				
-mov rax,0x0720077407750750
-mov [edi],rax
-mov rax,0x0767076e076f076c
-mov [edi+8],rax
-mov rax,0x0764076f076d0720
-mov [edi+16],rax
-mov rax,0x0765076b07200765
-mov [edi+24],rax
-mov rax,0x076c0765076e0772
-mov [edi+32],rax
-mov rax,0x0772076507680720
-mov [edi+40],rax
-mov rax,0x07200720072e0765
-mov [edi+48],rax
-
-;;; print some characters to the screen
-
-xor eax,eax
-mov bh,0x0f
 start:	
-mov edi,0xb8000
-mov bl,[hello_string+eax]
-mov [edi+(eax*2)],bx
-add ax,1
-cmp ax,hello_string_len
-jne start
-
-; Hang the system
-jmp $						
-
-hello_string db 'Hello World', 0
-hello_string_len equ $-hello_string
 
 

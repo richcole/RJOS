@@ -9,20 +9,69 @@ end
 class Builder
 
   def initialize
-    @build_dir  = 'build'
-    @src_dir    = 'src'
-    @floppy_img = @build_dir / "floppy.img"
+    @build      = "build"
+    @src_dir    = "src"
+    @floppy_img = @build / "floppy.img"
+    @rakefile   = "Rakefile"
 
-    directory @build_dir
+    directory @build
 
-    task :default => [ @floppy_image ]
+    file @floppy_img
+    file @rakefile
+    objects = []
+    bootloader = asm_to_bin("src/boot.asm")
+    objects << asm("src/start.asm")
+    objects << compile("src/kern.c")
+    kern = ld "src/linker.ld", "build/kern.bin", bootloader, objects
     
-    file "Rakefile"
-    file "src/boot.asm"
-    directory @build_dir
-    file @floppy_image => ["Rakefile", "src/boot.asm", @build_dir] do
-      sh "nasm -o #{@floppy_img} -f bin src/boot.asm"
+    file @floppy_img => [bootloader, kern, @rakefile] do
+      sh "cat #{bootloader} #{kern} > #{@floppy_img}"
     end
+
+    task :default => @floppy_img
+
+    task :clean do
+      sh "rm -rf build"
+    end
+
+#    file @floppy_image => [@rakefile, "src/boot.asm", @build_dir] do
+#      sh "nasm -o #{@floppy_img} -f bin src/boot.asm"
+#    end
+  end
+
+  def output(file, from, to)
+    return @build / File.basename(file, from) + to
+  end
+
+  def asm_to_bin(file)
+    obj_file = output(file, ".asm", ".bin")
+    file obj_file => [file, @build, @rakefile] do
+      sh "nasm -f bin -o #{obj_file} #{file}"
+    end
+    return obj_file
+  end
+
+  def asm(file)
+    obj_file = output(file, ".asm", ".o")
+    file obj_file => [file, @build, @rakefile] do
+      sh "nasm -f elf64 -o #{obj_file} #{file}"
+    end
+    return obj_file
+  end
+
+  def compile(file)
+    obj_file = output(file, ".c", ".o")
+    opts = "-Wall -m64 -nostdinc -nostdlib -ffreestanding"
+    file obj_file => [file, @build, @rakefile] do
+      sh "gcc #{opts} -c -o #{obj_file} #{file}"
+    end
+  end
+
+  def ld(ld_script, output, bootloader, objects)
+    file output => [ld_script, @build, @rakefile, bootloader] + objects do
+      sh "ld -T #{ld_script} -o #{output} #{objects.join(" ")}"
+    end
+    return output
   end
 
 end
