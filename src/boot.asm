@@ -19,7 +19,7 @@ jmp 0:.clear_cs			; zero the code segment register
 
 				; Load kernel from floppy disk
 mov ax,0x020D			; - function 0x2, 0xd sectors
-mov bx,start			; - location to load to
+mov bx,0x200			; - location to load to
 mov cx,0x0002			; - cylinder 0x0, sector 0x2
 mov dx,0x0000  			; - driver number
 int 0x13		        ; - software interupt - load sectors
@@ -116,7 +116,7 @@ mov cr0,ebx			; write CR0
 
 ;;; setup the global descriptor table
 lgdt [gdt.pointer]		; load 80-bit gdt.pointer below
-jmp gdt.code:start		; load cs with 64 bit segment and flush
+jmp gdt.code:0x200		; load cs with 64 bit segment and flush
 				; the instruction cache	
 
 ;;; beginning of the global descriptor table
@@ -135,8 +135,5 @@ dq gdt				; address of the global descriptor table
 
 times 510-($-$$) db 0		; fill remainder of sector with zeros
 dw 0xaa55			; boot sector signature
-
-[BITS 64]
-start:	
 
 

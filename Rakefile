@@ -1,4 +1,4 @@
-
+#!/usr/bin/rake
 
 class String
   def /(x)
@@ -19,16 +19,19 @@ class Builder
     file @floppy_img
     file @rakefile
     objects = []
-    bootloader = asm_to_bin("src/boot.asm")
+    @bootloader = asm_to_bin("src/boot.asm")
     objects << asm("src/start.asm")
     objects << compile("src/kern.c")
-    kern = ld "src/linker.ld", "build/kern.bin", bootloader, objects
+    @kern = ld "src/linker.ld", "build/kern.bin", @bootloader, objects
     
-    file @floppy_img => [bootloader, kern, @rakefile] do
-      sh "cat #{bootloader} #{kern} > #{@floppy_img}"
+    file @floppy_img => [@bootloader, @kern, @rakefile] do
+      sh "cat #{@bootloader} #{@kern} > #{@floppy_img}"
     end
 
+    task :disasm => [disasm(@kern), disasm(@floppy_img, "-s 0x200 -s 0x2a4")]
+
     task :default => @floppy_img
+    task :release => @floppy_img
 
     task :clean do
       sh "rm -rf build"
@@ -63,13 +66,21 @@ class Builder
     obj_file = output(file, ".c", ".o")
     opts = "-Wall -m64 -nostdinc -nostdlib -ffreestanding"
     file obj_file => [file, @build, @rakefile] do
-      sh "gcc #{opts} -c -o #{obj_file} #{file}"
+      sh "gcc #{opts} -fPIC -c -o #{obj_file} #{file}"
     end
   end
 
   def ld(ld_script, output, bootloader, objects)
     file output => [ld_script, @build, @rakefile, bootloader] + objects do
       sh "ld -T #{ld_script} -o #{output} #{objects.join(" ")}"
+    end
+    return output
+  end
+
+  def disasm(src, options="")
+    output = src + ".dis"
+    file output => [@build, src] do
+      sh "ndisasm -b64 -i #{src} #{options}> #{output}"
     end
     return output
   end

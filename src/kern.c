@@ -7,9 +7,5 @@ void kernel() {
     *p = 0x0f;
     p++;
   }
-  p[0] = 'W';
-  p[1] = 0x0f;
-  p[2] = 'e';
-  p[3] = 0x0f;
   while(1);
 }

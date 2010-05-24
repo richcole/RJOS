@@ -24,27 +24,44 @@ mov [edi+48],rax
 
 ;;; print hello world to the screen
 
-xor rax,rax
-mov bh,0x0f
-mov rdi,0xb8000
+;; mov word [0xb8000],0x0748
+;; mov word [0xb8002],0x0765
+;; mov word [0xb8004],0x0765
+
+;; xor       rax,   rax
+;; xor       rcx,   rcx
+;; xor       rdx,   rdx
+;; mov       rcx,   hello_string
+;; mov dword rdx,   0x0b8000
+;; mov byte  ah,    0x07
+;; mov byte  al,    [hello_string]
+;; mov word  [rdx], ax
+
+jmp print_hello
+
+hello_string dw 'Hello World', 0
+
+print_hello:
+
+;;;  copy hello world to screen
 mov rcx,hello_string
+mov ah,0x07
+mov rdi,0xb8000
 st:
-mov bl,byte [rcx]
-cmp bl,0
+mov byte al,[rcx]
+cmp al,0
 je next
-mov word [rdi],bx
-inc rcx
+mov word [rdi],ax
+add rcx,0x1
+add rdi,0x2
 jmp st
 	
-hello_string db 'Hello World', 0
-hello_string_len equ $-hello_string
-
-;;; jump into the kernel
 next:
 call kernel
 
-;;; hang if kernel returns
-jmp $				
+
+
+
 
 
 
