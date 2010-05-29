@@ -10,11 +10,13 @@ class Builder
 
   def initialize
     @build      = "build"
+    @includes   = @build / "includes"
     @src_dir    = "src"
     @floppy_img = @build / "floppy.img"
     @rakefile   = "Rakefile"
 
     directory @build
+    directory @includes
 
     file @floppy_img
     file @rakefile
@@ -25,7 +27,30 @@ class Builder
     @kern = ld "src/linker.ld", "build/kern.bin", @bootloader, objects
     
     file @floppy_img => [@bootloader, @kern, @rakefile] do
-      sh "cat #{@bootloader} #{@kern} > #{@floppy_img}"
+      size = 0
+      puts "Writing to #{@floppy_img}"
+      File.open(@floppy_img, "w") do |img_file|
+        data = File.read(@bootloader)
+        img_file.write data
+        size += data.size
+        puts "Wrote #{data.size} data from #{@bootloader}"
+
+        data = File.read(@kern)
+        img_file.write data
+        size += data.size
+        puts "Wrote #{data.size} data from #{@kern}"
+
+        pad_size = ((size / 512) * 512) - size
+        if pad_size < 0 then
+          pad_size += 512
+          data = File.open("/dev/zero", "r") do |n| 
+            img_file.write n.read(pad_size)
+          end
+          puts "Wrote #{pad_size} data to pad file"
+        else
+          puts "Not padding file because it's the right size"
+        end
+      end
     end
 
     task :disasm => [disasm(@kern), disasm(@floppy_img, "-s 0x200 -s 0x2a4")]
@@ -62,12 +87,21 @@ class Builder
     return obj_file
   end
 
+  def proto_file(file)
+    proto_file = @includes / File.basename(file, ".c") + "_proto.h"
+    file proto_file => [file, @build, @build / "includes", @rakefile] do
+      sh "cproto -sq #{file} > #{proto_file}"
+    end
+    return proto_file
+  end 
+
   def compile(file)
     obj_file = output(file, ".c", ".o")
     opts = "-Wall -m64 -nostdinc -nostdlib -ffreestanding"
-    file obj_file => [file, @build, @rakefile] do
-      sh "gcc #{opts} -fPIC -c -o #{obj_file} #{file}"
+    file obj_file => [file, @build, @rakefile, proto_file(file)] do
+      sh "gcc #{opts} -fPIC -c -I #{@includes} -o #{obj_file} #{file}"
     end
+    return obj_file
   end
 
   def ld(ld_script, output, bootloader, objects)

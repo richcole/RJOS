@@ -18,7 +18,7 @@ jmp 0:.clear_cs			; zero the code segment register
 .clear_cs:
 
 				; Load kernel from floppy disk
-mov ax,0x020D			; - function 0x2, 0xd sectors
+mov ax,0x020d			; - function 0x2, 0x2 sectors (0x200 * 0xd = 6656b)
 mov bx,0x200			; - location to load to
 mov cx,0x0002			; - cylinder 0x0, sector 0x2
 mov dx,0x0000  			; - driver number

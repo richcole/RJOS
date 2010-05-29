@@ -1,5 +1,7 @@
 [BITS 64]
 
+SECTION .text
+
 extern kernel
 
 ;;; disable interupts
@@ -22,27 +24,6 @@ mov [edi+40],rax
 mov rax,0x07200720072e0765
 mov [edi+48],rax
 
-;;; print hello world to the screen
-
-;; mov word [0xb8000],0x0748
-;; mov word [0xb8002],0x0765
-;; mov word [0xb8004],0x0765
-
-;; xor       rax,   rax
-;; xor       rcx,   rcx
-;; xor       rdx,   rdx
-;; mov       rcx,   hello_string
-;; mov dword rdx,   0x0b8000
-;; mov byte  ah,    0x07
-;; mov byte  al,    [hello_string]
-;; mov word  [rdx], ax
-
-jmp print_hello
-
-hello_string dw 'Hello World', 0
-
-print_hello:
-
 ;;;  copy hello world to screen
 mov rcx,hello_string
 mov ah,0x07
@@ -57,8 +38,20 @@ add rdi,0x2
 jmp st
 	
 next:
+mov  rsp, stack_end  ; set the stack pointer
+jmp $
+
 call kernel
 
+SECTION .data
+
+hello_string dw 'Hello World', 0
+
+SECTION .bss
+
+stack_begin:
+  RESB 4096 ; 4k stack
+stack_end:
 
 
 
