@@ -45,7 +45,31 @@ out 92h,al			; write the result to the port
 ;;;   PAE=1 -> large physical page size = 2M
 ;;; PDE.PS (bit 7)   - page size bit, if 1 then large page size is used
 ;;; ----
-;;; CR3 (PML4): 0x0000a000				
+;;; CR3 (PML4): 0x0000a000
+
+;;; We will allocate the following a single 2M page via
+;;;   PML4 (Page Map Level 4 Base Address) 0xa000
+;;;     - a single entry pointing to 0xb000
+;;;     - zeros for the rest (will create page faults if accessed)
+;;;   PDPE (Page Directory Pointer Table) - at 0xb000
+;;;     - a single entry pointing to 0xc000
+;;;   PDE (Page Directory Offset Table) - at 0xc000
+;;;     - a single entry pointing to 0x0000
+;;;     - the page type is a 2M page
+;;;   Space occupied by the table is from 0xa000 to 0xc000
+;;;   Flags: 
+;;;   0   P   - present indicates the page is loaded
+;;;   1   R/W - 0 means read only
+;;;   2   U/S - 0 means supervisor only
+;;;   3   PWT - page level write through, 1 means write through, 0 means write back
+;;;   4   PCD - 1 means not cacheable
+;;;   5   A   - accessed
+;;;   6   D   - dirty
+;;;   7   PS  - page size (set on PDE for 2M when in PAE mode)
+;;;   8   G   - global page 
+;;;   9   AVL - user defined meaning
+;;;   10  PAT - Page Attribute Table Mechanism
+;;;   63  NX  - No execute
 
 xor bx,bx			; zero bx
 mov es,bx			; zero es
@@ -80,8 +104,8 @@ mov cx,0x07ff                   ; number of entries to write
 rep stosw			; store values cx times
 
 ;;; PDE addr 0xc000, value of 0x18f
-;;; - flags: AVL=0, PAT=0, G=1,
-;;; - flags: MBZ=1, IGN=0, A=0, PCD=0, PWT=1, U/S=1, R/W=1, P=1
+;;; - flags: AVL=0, PAT=0, G=1
+;;; - flags: PS=1, IGN=0, A=0, PCD=0, PWT=1, U/S=1, R/W=1, P=1
 mov ax,0x018f			; set value to write to 0x018f
 stosw				; store values
 

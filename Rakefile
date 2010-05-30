@@ -53,7 +53,7 @@ class Builder
       end
     end
 
-    task :disasm => [disasm(@kern), disasm(@floppy_img, "-s 0x200 -s 0x2a4")]
+    task :disasm => [disasm(@kern), disasm(@floppy_img, "-s 0x200")]
 
     task :default => @floppy_img
     task :release => @floppy_img

@@ -2,6 +2,9 @@
 
 SECTION .text
 
+global start
+start:
+
 extern kernel
 
 ;;; disable interupts
@@ -38,9 +41,6 @@ add rdi,0x2
 jmp st
 	
 next:
-mov  rsp, stack_end  ; set the stack pointer
-jmp $
-
 call kernel
 
 SECTION .data
@@ -49,9 +49,6 @@ hello_string dw 'Hello World', 0
 
 SECTION .bss
 
-stack_begin:
-  RESB 4096 ; 4k stack
-stack_end:
 
 
 
