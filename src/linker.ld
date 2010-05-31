@@ -2,7 +2,7 @@ OUTPUT_FORMAT(binary)
 OUTPUT_ARCH(i386:x86-64)
 ENTRY(start)
 SECTIONS {
-  . = 0x0200;
+  . = 0xd000;
   .text : {
     build/start.o(.text)
     build/kern.o(.text)

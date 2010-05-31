@@ -12,7 +12,7 @@ class Builder
     @build      = "build"
     @includes   = @build / "includes"
     @src_dir    = "src"
-    @floppy_img = @build / "floppy.img"
+    @floppy_img = @build / "floppy.fdd"
     @rakefile   = "Rakefile"
 
     directory @build
@@ -25,6 +25,8 @@ class Builder
     objects << asm("src/start.asm")
     objects << compile("src/kern.c")
     @kern = ld "src/linker.ld", "build/kern.bin", @bootloader, objects
+
+    @floppy_size = 0x200 * 0xe
     
     file @floppy_img => [@bootloader, @kern, @rakefile] do
       size = 0
@@ -40,9 +42,8 @@ class Builder
         size += data.size
         puts "Wrote #{data.size} data from #{@kern}"
 
-        pad_size = ((size / 512) * 512) - size
-        if pad_size < 0 then
-          pad_size += 512
+        pad_size = @floppy_size - size
+        if pad_size > 0 then
           data = File.open("/dev/zero", "r") do |n| 
             img_file.write n.read(pad_size)
           end
@@ -53,7 +54,9 @@ class Builder
       end
     end
 
-    task :disasm => [disasm(@kern), disasm(@floppy_img, "-s 0x200")]
+    task :test_kern => [ compile_test("src/test_kern.c", objects, ["build/includes/kern_proto.h"]) ]
+
+    task :disasm => [disasm(@kern, "-b64"), disasm(@floppy_img, "-b64 -s 0x200"), disasm(@bootloader, "-b16")]
 
     task :default => @floppy_img
     task :release => @floppy_img
@@ -99,9 +102,18 @@ class Builder
     obj_file = output(file, ".c", ".o")
     opts = "-Wall -m64 -nostdinc -nostdlib -ffreestanding"
     file obj_file => [file, @build, @rakefile, proto_file(file)] do
-      sh "gcc #{opts} -fPIC -c -I #{@includes} -o #{obj_file} #{file}"
+      sh "gcc #{opts} -fPIC -c -I #{@includes} -I src -o #{obj_file} #{file}"
     end
     return obj_file
+  end
+
+  def compile_test(file, objects, depends)
+    test_output = output(file, ".c", "")
+    opts = "-Wall -m64 -ggdb"
+    file test_output => [file, @build, @rakefile, proto_file(file)] + depends do
+      sh "gcc #{opts} -fPIC -I #{@includes} -I src -o #{test_output} #{file} src/kern.c"
+    end
+    return test_output
   end
 
   def ld(ld_script, output, bootloader, objects)
@@ -111,10 +123,10 @@ class Builder
     return output
   end
 
-  def disasm(src, options="")
+  def disasm(src, options="-b64")
     output = src + ".dis"
     file output => [@build, src] do
-      sh "ndisasm -b64 -i #{src} #{options}> #{output}"
+      sh "ndisasm #{options} -i #{src} > #{output}"
     end
     return output
   end

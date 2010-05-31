@@ -17,17 +17,24 @@ sti				; turn registers back on
 jmp 0:.clear_cs			; zero the code segment register
 .clear_cs:
 
-				; Load kernel from floppy disk
-mov ax,0x020d			; - function 0x2, 0x2 sectors (0x200 * 0xd = 6656b)
-mov bx,0x200			; - location to load to
-mov cx,0x0002			; - cylinder 0x0, sector 0x2
-mov dx,0x0000  			; - driver number
-int 0x13		        ; - software interupt - load sectors
-
   				; enable address line A20
 in al,92h			; read from port 92h
 or al,02h			; or with 02h to turn on A20
 out 92h,al			; write the result to the port
+
+;; reset the floppy drive
+mov ax,0x0                      ; function 0x0 (reset drive)
+mov dx,0x0                      ; drive 0
+int 0x13                        
+
+;; Load kernel from floppy disk (0x200 * 0xd = 6656b)
+mov ah,0x02			; - function 0x2 (read sector)
+mov al,0x0d                     ; - 0xd sectors 
+mov bx,0xd000			; - store at 200
+mov cx,0x0002			; - track 0, sector 2 (sectors are 1 based)
+mov dx,0x0000                   ; - head 0, drive 0
+int 0x13
+jc $                            ; hang if did not succeed
 
 ;;; Build page tables
 ;;; A virtual address is
@@ -140,7 +147,7 @@ mov cr0,ebx			; write CR0
 
 ;;; setup the global descriptor table
 lgdt [gdt.pointer]		; load 80-bit gdt.pointer below
-jmp gdt.code:0x200		; load cs with 64 bit segment and flush
+jmp gdt.code:0xd000		; load cs with 64 bit segment and flush
 				; the instruction cache	
 
 ;;; beginning of the global descriptor table

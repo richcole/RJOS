@@ -1,33 +1,115 @@
-* Introduction
+= Introduction
 
   RJOS is my attempt to learn a little bit more about my AMD64 dual
   processor. So far the project contains not much more than a simple
   boot loader copied from osdev.org, an excellent resources for people
   who want to learn about operating systems.
 
-* Compilation and Running Using Nasm and Bochs
+= Compilation and Running Using Nasm and Bochs
 
-** Install Dependencies 
+== Install Dependencies 
 
 First install bochs and nasm and rake
 
   $ apt-get install bochs bochs-wm nasm rake
 
-** Build
+== Build
 
   $ rake
 
-** Run bochs
+== Run bochs
 
   $ bochs
 
-* Next Steps
+= Development Notes
 
-** Find out how to include some C code
-** Find out how to use a device, e.g. the floppy drive, directly
-** Find out about kernel mode vs user mode and how to swap between the
-   two
+== Bootloading
+
+After a long struggle I finally have boot loading into 64 bit mode and
+then jumping into C code. I have stuggled in this regard with the
+linker and several bugs in my code. The most difficult of which was
+that I didn't realize that static variables don't work, or at least
+are not initialized in the current setup.
+
+To get going I needed to use AMD's SimNow with is a pretty awesome
+machine simulator. It allows one to step through the code which I
+needed to do to discover various things that are wrong about the
+dis-assembly done by nasm and the fact that static local variables are
+not initialized.
+
+NOTE: The initial bootloader is loaded at location 0x7c00. The stack
+is also set to 0x7c00 but since it walks down from 0x7c00 doesn't
+overlap the code. The kernel is loaded at position 0x200, so it cannot
+be longer than 0x7c00 - 0x200 = 7a00 or 3d blocks. It is currently set
+to d blocks which is 6656, the kernel is currenty 3944 blocks, so it
+fits.
+
+== Memory Setup
+
+The memory setup used 64 bit mode with 2M pages. It defines a single
+page which interestingly contains the memory map itself. I've updated
+comments in boot.asm to explain how the memory map is setup.
+
+It is rather curious that there are several memory holes. The only way
+to find memory holes is to access bios functions that return an array
+of holes in memory. So even in 64 bit mode one is not immune to the
+complexities of the IBM-PC architecture.
+
+The following memory locations are reserved limits:
+
+  0x0     - 0x03ff  - Real mode IVT
+  0x400   - 0x0f44  - BIOS Data Area
+  0x500   - 0x07bff - Free for use 30k
+  0x7c00  - 0x7dff  - Boot sector is located here
+  0x7e00  - 0x7ffff - Free for use 480k
+  0x80000 - 0x8fbff - Free for use 120k
+  0x9fc00 - 0x9ffff - Extended BIOS Data Area
+  0xa0000 - 0xfffff - ROM Area (BIOS)
+    0xa0000 - 0xaffff VGA FrameBuffer
+    0xb0000 - 0xb7fff VGA Text Mode
+    0xb8000 - 0xbffff VGA text color
+    0xc0000 - 0xc7000 ROM Area for Video BIOS
+    0xc8000 - 0xeffff ROM and Hardware
+    0xf0000 - 0xfffff BIOS
+
+These regions are used by my Kernel
+
+ - 0x7c00 to 0x7e00  - Boot sector
+ - 0xa000 to 0xc7ff  - Page Table
+ - 0xd000 to 0xea00  - Kernel ( 6k )
 
 
+== Reading GCC Assembler Code
+
+Without any optimization turned on GCC is pretty horribly inefficient,
+it doesn't do register allocation but rather stores variables on the
+stack rather than using general purpose registers.
+
+== Mouse and Keyboard Driver
+
+I'm only going to support USB Mouse and Keyboard events. But before
+doing USB, one must first be able to do PCI.
+
+== Debugging 
+
+Currently I'm having trouble because the memory loaded from disk
+doesn't match what is in the file. Around line 0x440 the dis-assembly
+and hexl mode in emacs say one thing, looking at the memory in SimNow
+shows something different.
+
+For SimNow I'm using the Melody_1 machine description. I use the
+following debugging commands.
+
+  bx 7c28 ;; break just before the kernel has been loaded
+  bx 7c2a ;; break just after kernel has been loaded
+  bx 200  ;; break when starting kernel after boot loading )
+  d  440  ;; display the potion of memory that appears corrupt
+
+  bc      ;; clear a break point
+  bl      ;; list break points
 
 
+== Potentially Interesting Links
+
+http://www.ijack.org.uk/
+http://www.osdever.net/
