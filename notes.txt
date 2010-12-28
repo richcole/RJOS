@@ -1,0 +1,6 @@
+boot.asm  - 16 bit
+start.asm - 64 bit - starts at 0x200 - byte 512
+                   - starts at 0x28C - jmp 0x2a5
+                   - starts at 0x294 - last instr
+                   - starts at 0x299 - hello world
+                   - 0x2a5           - end of hello world
